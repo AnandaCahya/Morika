@@ -180,12 +180,6 @@ apt install -y apache2
 systemctl enable apache2
 systemctl start apache2
 
-# Menginstal DDoS Deflate
-echo "Menginstal DDoS Deflate..."
-git clone https://github.com/jgmize/ddos-deflate.git /usr/local/ddos
-cd /usr/local/ddos
-bash install.sh
-
 # Menginstal RKHunter dan Chkrootkit
 echo "Menginstal RKHunter dan Chkrootkit..."
 apt install -y rkhunter chkrootkit
