@@ -58,16 +58,43 @@ apt install -y nginx
 systemctl enable nginx
 systemctl start nginx
 
+#!/bin/bash
+
+# Menghapus repositori yang tidak dapat diakses
+SOURCE_FILE="/etc/apt/sources.list.d/teleport.list"
+
+if [ -f "$SOURCE_FILE" ]; then
+  echo "Menghapus repositori yang tidak dapat diakses: $SOURCE_FILE"
+  rm -f "$SOURCE_FILE"
+  echo "Repositori telah dihapus."
+fi
+
 # Menambahkan repositori dan menginstal Teleport
 echo "Menambahkan repositori Teleport..."
-wget -qO - https://deb.gravitational.io/GRAVITATIONAL-GPG.key | apt-key add -
-echo "deb https://deb.gravitational.io/ teleport main" | tee /etc/apt/sources.list.d/teleport.list
+if wget -q --spider https://deb.gravitational.io/; then
+  echo "Repositori Teleport dapat diakses."
+  echo "Menambahkan repositori..."
+  wget -qO - https://deb.gravitational.io/GRAVITATIONAL-GPG.key | apt-key add -
+  echo "deb https://deb.gravitational.io/ teleport main" | tee /etc/apt/sources.list.d/teleport.list
+else
+  echo "Repositori tidak dapat diakses. Mengunduh paket secara manual."
+  VERSION=$(curl -s https://api.github.com/repos/gravitational/teleport/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
+  wget "https://get.gravitational.com/teleport_${VERSION}_amd64.deb"
+  apt install -y ./teleport_${VERSION}_amd64.deb
+  rm -f ./teleport_${VERSION}_amd64.deb
+  echo "Teleport telah diinstal dari paket."
+  exit 0
+fi
 
+# Memperbarui daftar paket
 echo "Memperbarui daftar paket..."
 apt update
 
+# Menginstal Teleport
 echo "Menginstal Teleport..."
 apt install -y teleport
+
+echo "Instalasi Teleport selesai!"
 
 # Mendapatkan alamat IP server
 SERVER_IP=$(hostname -I | awk '{print $1}')
