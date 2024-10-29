@@ -72,7 +72,7 @@ apt install -y teleport
 # Mendapatkan alamat IP server
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
-# Mengonfigurasi Teleport untuk Kubernetes dan VM
+# Mengonfigurasi Teleport
 echo "Mengonfigurasi Teleport..."
 cat <<EOF > /etc/teleport.yaml
 teleport:
@@ -111,12 +111,7 @@ systemctl enable teleport
 systemctl start teleport
 
 # Menginstal Security Onion
-echo "Menambahkan repositori Security Onion..."
-wget -qO - https://securityonion.net/keys/securityonion.key | apt-key add -
-add-apt-repository "deb https://securityonion.net/ubuntu focal main"
-
-echo "Memperbarui daftar paket dan menginstal Security Onion..."
-apt update
+echo "Menginstal Security Onion..."
 apt install -y securityonion
 
 # Menjalankan konfigurasi Security Onion
@@ -167,6 +162,12 @@ apt install -y apache2
 systemctl enable apache2
 systemctl start apache2
 
+# Menginstal DDoS Deflate
+echo "Menginstal DDoS Deflate..."
+git clone https://github.com/jgmize/ddos-deflate.git /usr/local/ddos
+cd /usr/local/ddos
+bash install.sh
+
 # Menginstal RKHunter dan Chkrootkit
 echo "Menginstal RKHunter dan Chkrootkit..."
 apt install -y rkhunter chkrootkit
@@ -179,8 +180,8 @@ rkhunter --propupdate
 
 # Menambahkan cron job untuk RKHunter dan Chkrootkit
 echo "Menambahkan cron job untuk RKHunter dan Chkrootkit..."
-(crontab -l 2>/dev/null; echo "0 2 * * * /usr/bin/rkhunter --check" ) | crontab -
-(crontab -l 2>/dev/null; echo "0 3 * * * /sbin/chkrootkit" ) | crontab -
+(crontab -l 2>/dev/null; echo "0 2 * * * /usr/bin/rkhunter --check") | crontab -
+(crontab -l 2>/dev/null; echo "0 3 * * * /sbin/chkrootkit") | crontab -
 
 # Menginstal Prometheus Node Exporter
 echo "Menginstal Prometheus Node Exporter..."
