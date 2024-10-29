@@ -61,10 +61,12 @@ systemctl start nginx
 # Menambahkan repositori dan menginstal Teleport
 echo "Menambahkan repositori Teleport..."
 wget -qO - https://deb.gravitational.io/GRAVITATIONAL-GPG.key | apt-key add -
-add-apt-repository "deb https://deb.gravitational.io/ teleport main"
+echo "deb https://deb.gravitational.io/ teleport main" | tee /etc/apt/sources.list.d/teleport.list
+
+echo "Memperbarui daftar paket..."
+apt update
 
 echo "Menginstal Teleport..."
-apt update
 apt install -y teleport
 
 # Mendapatkan alamat IP server
