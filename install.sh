@@ -12,7 +12,7 @@ apt update && apt upgrade -y
 
 # Menginstal aplikasi dasar
 echo "Menginstal aplikasi dasar..."
-sudo apt install -y \
+apt install -y \
   git \
   curl \
   vim \
@@ -30,8 +30,11 @@ sudo apt install -y \
   libvirt-daemon-system \
   libvirt-clients \
   wget \
-  xvfb \
   chromium
+
+# Menginstall xvfb
+echo "Menginstall xvfb..."
+sudo apt install xvfb
 
 # Mengonfigurasi SELinux
 echo "Mengonfigurasi SELinux..."
