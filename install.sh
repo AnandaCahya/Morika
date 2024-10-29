@@ -68,7 +68,6 @@ if [ -f "$SOURCE_FILE" ]; then
 fi
 
 # Menambahkan repositori dan menginstal Teleport
-echo "Repositori tidak dapat diakses. Mengunduh paket secara manual."
 VERSION=$(curl -s https://api.github.com/repos/gravitational/teleport/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
 wget "https://get.gravitational.com/teleport_${VERSION}_amd64.deb"
 apt install -y ./teleport_${VERSION}_amd64.deb
@@ -269,6 +268,10 @@ echo "Menambahkan cron job untuk AIDE..."
 AUTO_START_SCRIPT="/usr/local/bin/open_web_ui.sh"
 cat <<EOF > $AUTO_START_SCRIPT
 #!/bin/bash
+SERVER_IP=$(hostname -I | awk '{print $1}')
+echo "Akses web UI Teleport di http://$SERVER_IP:3080"
+echo "Akses web UI Security Onion di http://$SERVER_IP:443"
+sleep 10  # Tunggu sampai lingkungan siap
 DISPLAY=:99
 Xvfb :99 -screen 0 1024x768x16 &
 sleep 2
@@ -278,10 +281,24 @@ EOF
 
 chmod +x $AUTO_START_SCRIPT
 
-# Menambahkan ke cron job untuk menjalankan skrip auto start saat boot
-(crontab -l 2>/dev/null; echo "@reboot $AUTO_START_SCRIPT") | crontab -
+# Membuat layanan systemd untuk membuka Chromium
+cat <<EOF > /etc/systemd/system/open_web_ui.service
+[Unit]
+Description=Open Web UI in Chromium
+After=display-manager.service
 
-# Membuat layanan systemd untuk Xvfb
+[Service]
+ExecStart=$AUTO_START_SCRIPT
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+EOF
+
+# Mengaktifkan dan memulai layanan
+systemctl enable open_web_ui.service
+
+# Membuat layanan untuk Xvfb
 echo "Membuat layanan untuk Xvfb..."
 cat <<EOF > /etc/systemd/system/xvfb.service
 [Unit]
