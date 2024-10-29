@@ -6,6 +6,9 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
+# Mendapatkan nama pengguna yang menjalankan skrip
+USERNAME=$(logname)
+
 # Memperbarui sistem
 echo "Memperbarui sistem..."
 apt update && apt upgrade -y
@@ -30,11 +33,10 @@ apt install -y \
   libvirt-daemon-system \
   libvirt-clients \
   wget \
+  lightdm \
+  openbox \
+  xorg \
   chromium
-
-# Menginstall xvfb
-echo "Menginstall xvfb..."
-sudo apt install -y xvfb
 
 # Mengonfigurasi SELinux
 echo "Mengonfigurasi SELinux..."
@@ -60,15 +62,6 @@ apt install -y nginx
 # Mengaktifkan dan memulai Nginx
 systemctl enable nginx
 systemctl start nginx
-
-# Menghapus repositori yang tidak dapat diakses
-SOURCE_FILE="/etc/apt/sources.list.d/teleport.list"
-
-if [ -f "$SOURCE_FILE" ]; then
-  echo "Menghapus repositori yang tidak dapat diakses: $SOURCE_FILE"
-  rm -f "$SOURCE_FILE"
-  echo "Repositori telah dihapus."
-fi
 
 # Menambahkan repositori dan menginstal Teleport
 VERSION=$(curl -s https://api.github.com/repos/gravitational/teleport/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
@@ -267,58 +260,25 @@ mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db  # Pindahkan basis data yang 
 echo "Menambahkan cron job untuk AIDE..."
 (crontab -l 2>/dev/null; echo "0 1 * * * /usr/bin/aide --check") | crontab -
 
-# Membuat skrip auto start untuk membuka antarmuka web
-AUTO_START_SCRIPT="/usr/local/bin/open_web_ui.sh"
-cat <<EOF > $AUTO_START_SCRIPT
+# Mengonfigurasi login otomatis
+echo "Mengonfigurasi login otomatis..."
+cat <<EOF >> /etc/lightdm/lightdm.conf
+[Seat:*]
+autologin-user=$USERNAME
+EOF
+
+# Menambahkan skrip untuk membuka Chromium
+echo "Menambahkan skrip untuk membuka Chromium..."
+cat <<EOF > /home/$USERNAME/start_chromium.sh
 #!/bin/bash
-SERVER_IP=$(hostname -I | awk '{print $1}')
-echo "Akses web UI Teleport di http://$SERVER_IP:3080"
-echo "Akses web UI Security Onion di http://$SERVER_IP:443"
-sleep 10  # Tunggu sampai lingkungan siap
-DISPLAY=:99
-Xvfb :99 -screen 0 1024x768x16 &
-sleep 2
-chromium --no-sandbox --disable-dev-shm-usage "http://$SERVER_IP:3080" &
-chromium --no-sandbox --disable-dev-shm-usage "http://$SERVER_IP:443" &
+sleep 5  # Menunggu beberapa detik agar desktop sepenuhnya siap
+chromium --new-window "http://localhost:3080" "http://localhost:443"
 EOF
 
-chmod +x $AUTO_START_SCRIPT
+chmod +x /home/$USERNAME/start_chromium.sh
 
-# Membuat layanan systemd untuk membuka Chromium
-cat <<EOF > /etc/systemd/system/open_web_ui.service
-[Unit]
-Description=Open Web UI in Chromium
-After=display-manager.service
-
-[Service]
-ExecStart=$AUTO_START_SCRIPT
-Restart=on-failure
-
-[Install]
-WantedBy=default.target
-EOF
-
-# Mengaktifkan dan memulai layanan
-systemctl enable open_web_ui.service
-
-# Membuat layanan untuk Xvfb
-echo "Membuat layanan untuk Xvfb..."
-cat <<EOF > /etc/systemd/system/xvfb.service
-[Unit]
-Description=Xvfb Service
-After=multi-user.target
-
-[Service]
-ExecStart=/usr/bin/Xvfb :99 -screen 0 1024x768x16
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Mengaktifkan dan memulai layanan Xvfb
-systemctl enable xvfb
-systemctl start xvfb
+# Menambahkan perintah ke .xprofile untuk menjalankan skrip saat login
+echo "/home/$USERNAME/start_chromium.sh &" >> /home/$USERNAME/.xprofile
 
 echo "Instalasi selesai! Server Anda sekarang siap digunakan."
 echo "Akses web UI Teleport di http://$SERVER_IP:3080"
