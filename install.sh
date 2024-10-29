@@ -237,6 +237,14 @@ apt install -y snort
 # Mengonfigurasi Snort
 echo "Mengonfigurasi Snort..."
 
+# Variabel untuk path Snort
+SNORT_CONF="/etc/snort/snort.conf"
+SNORT_RULES="/etc/snort/rules/local.rules"
+LOG_DIR="/var/log/snort"
+
+# Update dan install Snort non-interactive
+apt update && apt install -y snort
+
 # Deteksi interface aktif
 INTERFACE=$(ip -o -f inet addr show | awk '{print $2}' | head -n 1)
 if [ -z "$INTERFACE" ]; then
@@ -247,38 +255,38 @@ fi
 echo "Menggunakan interface: $INTERFACE"
 
 # Backup file konfigurasi Snort
-cp /etc/snort/snort.conf /etc/snort/snort.conf.bak
+cp "$SNORT_CONF" "${SNORT_CONF}.bak"
 
 # Konfigurasi HOME_NET dan EXTERNAL_NET
-sed -i "s/^var HOME_NET.*/var HOME_NET [192.168.1.0\/24]/" /etc/snort/snort.conf
-sed -i "s/^var EXTERNAL_NET.*/var EXTERNAL_NET any/" /etc/snort/snort.conf
+sed -i "s/^var HOME_NET.*/var HOME_NET [192.168.1.0\/24]/" "$SNORT_CONF"
+sed -i "s/^var EXTERNAL_NET.*/var EXTERNAL_NET any/" "$SNORT_CONF"
 
 # Konfigurasi logging
-sed -i "s/^output unified2:.*/output unified2: filename \/var\/log\/snort\/snort.log, limit 128/" /etc/snort/snort.conf
+sed -i "s/^output unified2:.*/output unified2: filename ${LOG_DIR}/snort.log, limit 128/" "$SNORT_CONF"
 
 # Tambahkan rules dasar jika local.rules tidak ada
-if [ ! -f /etc/snort/rules/local.rules ]; then
-  echo "# Rules tambahan" > /etc/snort/rules/local.rules
+if [ ! -f "$SNORT_RULES" ]; then
+  echo "# Rules tambahan" > "$SNORT_RULES"
 fi
 
 # Tambahkan contoh rules jika belum ada
-if ! grep -q "ICMP Packet Detected" /etc/snort/rules/local.rules; then
-  echo "alert icmp any any -> \$HOME_NET any (msg:\"ICMP Packet Detected\"; sid:1000001;)" >> /etc/snort/rules/local.rules
+if ! grep -q "ICMP Packet Detected" "$SNORT_RULES"; then
+  echo "alert icmp any any -> \$HOME_NET any (msg:\"ICMP Packet Detected\"; sid:1000001;)" >> "$SNORT_RULES"
 fi
 
-if ! grep -q "HTTP Packet Detected" /etc/snort/rules/local.rules; then
-  echo "alert tcp any any -> \$HOME_NET 80 (msg:\"HTTP Packet Detected\"; sid:1000002;)" >> /etc/snort/rules/local.rules
+if ! grep -q "HTTP Packet Detected" "$SNORT_RULES"; then
+  echo "alert tcp any any -> \$HOME_NET 80 (msg:\"HTTP Packet Detected\"; sid:1000002;)" >> "$SNORT_RULES"
 fi
 
 # Cek konfigurasi Snort
-snort -T -c /etc/snort/snort.conf
+snort -T -c "$SNORT_CONF"
 if [ $? -ne 0 ]; then
   echo "Konfigurasi Snort tidak valid. Silakan periksa error di atas."
   exit 1
 fi
 
 # Jalankan Snort
-snort -A console -c /etc/snort/snort.conf -i "$INTERFACE" &
+snort -A console -c "$SNORT_CONF" -i "$INTERFACE" &
 
 echo "Snort sudah dijalankan di interface $INTERFACE"
 
