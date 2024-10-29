@@ -58,8 +58,6 @@ apt install -y nginx
 systemctl enable nginx
 systemctl start nginx
 
-#!/bin/bash
-
 # Menghapus repositori yang tidak dapat diakses
 SOURCE_FILE="/etc/apt/sources.list.d/teleport.list"
 
@@ -283,6 +281,30 @@ chmod +x $AUTO_START_SCRIPT
 # Menambahkan ke cron job untuk menjalankan skrip auto start saat boot
 (crontab -l 2>/dev/null; echo "@reboot $AUTO_START_SCRIPT") | crontab -
 
+# Membuat layanan systemd untuk Xvfb
+echo "Membuat layanan untuk Xvfb..."
+cat <<EOF > /etc/systemd/system/xvfb.service
+[Unit]
+Description=Xvfb Service
+After=multi-user.target
+
+[Service]
+ExecStart=/usr/bin/Xvfb :99 -screen 0 1024x768x16
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Mengaktifkan dan memulai layanan Xvfb
+systemctl enable xvfb
+systemctl start xvfb
+
 echo "Instalasi selesai! Server Anda sekarang siap digunakan."
 echo "Akses web UI Teleport di http://$SERVER_IP:3080"
 echo "Akses web UI Security Onion di http://$SERVER_IP:443"
+
+# Reboot sistem
+echo "Rebooting sistem dalam 5 detik..."
+sleep 5
+reboot
