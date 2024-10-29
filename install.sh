@@ -12,7 +12,7 @@ apt update && apt upgrade -y
 
 # Menginstal aplikasi dasar
 echo "Menginstal aplikasi dasar..."
-apt install -y \
+sudo apt install -y \
   git \
   curl \
   vim \
