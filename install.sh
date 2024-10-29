@@ -34,7 +34,7 @@ apt install -y \
 
 # Menginstall xvfb
 echo "Menginstall xvfb..."
-sudo apt install xvfb
+sudo apt install -y xvfb
 
 # Mengonfigurasi SELinux
 echo "Mengonfigurasi SELinux..."
