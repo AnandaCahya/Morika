@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo "Morika Installer (v1.0.0-test)"
+
 # Memastikan skrip dijalankan dengan hak akses root
 if [ "$(id -u)" -ne 0 ]; then
   echo "Silakan jalankan skrip ini sebagai root atau dengan sudo."
@@ -22,9 +24,6 @@ apt install -y \
   htop \
   ufw \
   software-properties-common \
-  policycoreutils \
-  selinux-utils \
-  selinux-basics \
   kubelet \
   kubeadm \
   kubectl \
@@ -33,16 +32,25 @@ apt install -y \
   libvirt-daemon-system \
   libvirt-clients \
   wget \
-  lightdm \
+  sddm \
   openbox \
   xorg \
-  chromium
+  chromium-browser \
+  clamav clamav-daemon \
+  fail2ban \
+  rkhunter chkrootkit \
+  suricata \
+  libapache2-mod-security2 \
+  apache2 \
+  aide
 
-# Mengonfigurasi SELinux
-echo "Mengonfigurasi SELinux..."
-selinux-basics --enable
-setenforce 1
-echo "SELinux diatur ke enforcing."
+# Menginstal Security Onion
+echo "Menginstal Security Onion..."
+# Pastikan Anda menyesuaikan langkah ini sesuai dengan dokumentasi terbaru dari Security Onion.
+wget -qO - https://securityonion.net/gpg.key | sudo apt-key add -
+echo "deb https://securityonion.net/securityonion/ubuntu focal main" | sudo tee /etc/apt/sources.list.d/securityonion.list
+apt update
+apt install -y securityonion
 
 # Mengonfigurasi firewall
 echo "Mengonfigurasi firewall..."
@@ -55,30 +63,17 @@ ufw allow 443   # Port untuk Security Onion Web UI
 ufw enable
 ufw status
 
-# Menginstal Nginx
-echo "Menginstal Nginx..."
-apt install -y nginx
-
-# Mengaktifkan dan memulai Nginx
-systemctl enable nginx
-systemctl start nginx
-
-# Menambahkan repositori dan menginstal Teleport
+# Menginstal Teleport
+echo "Menginstal Teleport..."
 VERSION=$(curl -s https://api.github.com/repos/gravitational/teleport/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
 wget "https://get.gravitational.com/teleport_${VERSION}_amd64.deb"
-apt install -y ./teleport_${VERSION}_amd64.deb
-rm -f ./teleport_${VERSION}_amd64.deb
+dpkg -i "teleport_${VERSION}_amd64.deb" || apt -f install -y
+rm -f "teleport_${VERSION}_amd64.deb"
 echo "Teleport telah diinstal dari paket."
 
 # Memperbarui daftar paket
 echo "Memperbarui daftar paket..."
 apt update
-
-# Menginstal Teleport
-echo "Menginstal Teleport..."
-apt install -y teleport
-
-echo "Instalasi Teleport selesai!"
 
 # Mendapatkan alamat IP server
 SERVER_IP=$(hostname -I | awk '{print $1}')
@@ -121,62 +116,6 @@ EOF
 systemctl enable teleport
 systemctl start teleport
 
-# Menginstal Security Onion
-echo "Menginstal Security Onion..."
-apt install -y securityonion
-
-# Menjalankan konfigurasi Security Onion
-echo "Menjalankan konfigurasi Security Onion..."
-so-setup
-
-# Menginstal ClamAV
-echo "Menginstal ClamAV..."
-apt install -y clamav clamav-daemon
-freshclam  # Memperbarui database ClamAV
-
-# Menginstal Fail2Ban
-echo "Menginstal Fail2Ban..."
-apt install -y fail2ban
-cat <<EOF > /etc/fail2ban/jail.local
-[DEFAULT]
-bantime  = 1h
-findtime = 1h
-maxretry = 3
-
-[sshd]
-enabled = true
-port = 3022  # Ubah port SSH
-EOF
-
-# Mengaktifkan dan memulai Fail2Ban
-systemctl enable fail2ban
-systemctl start fail2ban
-
-# Menginstal Suricata
-echo "Menginstal Suricata..."
-apt install -y suricata
-suricata-update
-
-# Mengaktifkan Suricata
-systemctl enable suricata
-systemctl start suricata
-
-# Menginstal ModSecurity
-echo "Menginstal ModSecurity..."
-apt install -y libapache2-mod-security2
-cp /etc/modsecurity/modsecurity.conf-recommended /etc/modsecurity/modsecurity.conf
-sed -i 's/SecRuleEngine DetectionOnly/SecRuleEngine On/' /etc/modsecurity/modsecurity.conf
-
-# Menginstal dan mengaktifkan Apache
-echo "Menginstal dan mengaktifkan Apache..."
-apt install -y apache2
-systemctl enable apache2
-systemctl start apache2
-
-# Menginstal RKHunter dan Chkrootkit
-echo "Menginstal RKHunter dan Chkrootkit..."
-apt install -y rkhunter chkrootkit
-
 # Mengonfigurasi RKHunter
 echo "Mengonfigurasi RKHunter..."
 echo "ALLOW_HIDDEN=1" >> /etc/rkhunter.conf
@@ -184,88 +123,35 @@ rkhunter --update
 rkhunter --propupdate
 
 # Menambahkan cron job untuk RKHunter dan Chkrootkit
-echo "Menambahkan cron job untuk RKHunter dan Chkrootkit..."
 (crontab -l 2>/dev/null; echo "0 2 * * * /usr/bin/rkhunter --check") | crontab -
 (crontab -l 2>/dev/null; echo "0 3 * * * /sbin/chkrootkit") | crontab -
 
-# Menginstal Prometheus Node Exporter
-echo "Menginstal Prometheus Node Exporter..."
-wget https://github.com/prometheus/node_exporter/releases/latest/download/node_exporter-*.tar.gz
-tar -xvf node_exporter-*.tar.gz
-mv node_exporter-* node_exporter
-mv node_exporter/node_exporter /usr/local/bin/
-
-# Mengatur layanan Node Exporter
-cat <<EOF > /etc/systemd/system/node_exporter.service
-[Unit]
-Description=Prometheus Node Exporter
-Wants=network-online.target
-After=network-online.target
-
-[Service]
-User=root
-ExecStart=/usr/local/bin/node_exporter
-
-[Install]
-WantedBy=multi-user.target
+# Mengonfigurasi login otomatis untuk SDDM
+echo "Mengonfigurasi login otomatis untuk SDDM..."
+cat <<EOF > /etc/sddm.conf
+[Autologin]
+User=$USERNAME
+Session=openbox.desktop
 EOF
 
-# Mengaktifkan dan memulai Node Exporter
-systemctl enable node_exporter
-systemctl start node_exporter
-
-# Mengubah port SSH
-echo "Mengubah port SSH..."
-sed -i 's/#Port 22/Port 3022/' /etc/ssh/sshd_config
-systemctl restart ssh
-
-# Nonaktifkan root login
-echo "Menonaktifkan login root melalui SSH..."
-sed -i 's/PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config
-systemctl restart ssh
-
-# Menginstal AppArmor
-echo "Menginstal dan mengaktifkan AppArmor..."
-apt install -y apparmor apparmor-utils
-systemctl enable apparmor
-systemctl start apparmor
-
-# Menginstal AIDE
-echo "Menginstal AIDE..."
-apt install -y aide
-
-# Mengonfigurasi AIDE
-echo "Mengonfigurasi AIDE..."
-aideinit  # Inisialisasi basis data AIDE
-mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db  # Pindahkan basis data yang baru dibuat
-
-# Menambahkan cron job untuk AIDE
-echo "Menambahkan cron job untuk AIDE..."
-(crontab -l 2>/dev/null; echo "0 1 * * * /usr/bin/aide --check") | crontab -
-
-# Mengonfigurasi login otomatis
-echo "Mengonfigurasi login otomatis..."
-cat <<EOF >> /etc/lightdm/lightdm.conf
-[Seat:*]
-autologin-user=$USERNAME
+# Membuat file konfigurasi Openbox
+mkdir -p /home/$USERNAME/.config/openbox
+cat <<EOF > /home/$USERNAME/.config/openbox/autostart
+#!/bin/sh
+chromium-browser --new-window "http://localhost:3080" "http://localhost:443" &
 EOF
 
-# Menambahkan skrip untuk membuka Chromium
-echo "Menambahkan skrip untuk membuka Chromium..."
-cat <<EOF > /home/$USERNAME/start_chromium.sh
-#!/bin/bash
-sleep 5  # Menunggu beberapa detik agar desktop sepenuhnya siap
-chromium --new-window "http://localhost:3080" "http://localhost:443"
-EOF
+chmod +x /home/$USERNAME/.config/openbox/autostart
 
-chmod +x /home/$USERNAME/start_chromium.sh
+# Membuat file .xsession
+echo "exec openbox-session" > /home/$USERNAME/.xsession
 
-# Menambahkan perintah ke .xprofile untuk menjalankan skrip saat login
-echo "/home/$USERNAME/start_chromium.sh &" >> /home/$USERNAME/.xprofile
+# Menyeting hak akses untuk pengguna
+chown -R $USERNAME:$USERNAME /home/$USERNAME/.config
 
-echo "Instalasi selesai! Server Anda sekarang siap digunakan."
-echo "Akses web UI Teleport di http://$SERVER_IP:3080"
-echo "Akses web UI Security Onion di http://$SERVER_IP:443"
+# Mengaktifkan dan memulai SDDM
+systemctl enable sddm
+systemctl start sddm
 
 # Reboot sistem
 echo "Rebooting sistem dalam 5 detik..."
